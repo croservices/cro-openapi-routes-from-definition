@@ -10,6 +10,8 @@ class X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse is Exception {
 
 module Cro::OpenAPI::RoutesFromDefinition {
     class OperationSet is Cro::HTTP::Router::RouteSet {
+        has OpenAPI::Model::OpenAPI $.model;
+
         method add-handler(Str $method, &) {
             die X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse.new(what => $method.lc);
         }
@@ -31,7 +33,10 @@ module Cro::OpenAPI::RoutesFromDefinition {
                   Bool() :$ignore-unimplemented = False,
                   Bool() :$implement-examples = False,
                   Bool() :$validate-responses = True) is export {
-        my $*CRO-ROUTE-SET = OperationSet.new;
+        my $model = $openapi-document ~~ /^\s*'{'/
+            ?? OpenAPI::Model.from-json($openapi-document)
+            !! OpenAPI::Model.from-yaml($openapi-document);
+        my $*CRO-ROUTE-SET = OperationSet.new(:$model);
         implementation();
         $*CRO-ROUTE-SET.definition-complete();
         return $*CRO-ROUTE-SET;
