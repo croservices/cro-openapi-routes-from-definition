@@ -220,4 +220,21 @@ throws-like
     X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse,
     what => 'delegate';
 
+lives-ok
+    {
+        openapi $pet-store, :ignore-unimplemented, {
+            ;
+        }
+    },
+    'With :ignore-unimplemented, no error even if no operations implemented';
+
+throws-like
+    {
+        openapi $pet-store, {
+            ;
+        }
+    },
+    X::Cro::OpenAPI::RoutesFromDefinition::UnimplementedOperations,
+    operations => [<createPets listPets showPetById>];
+
 done-testing;
