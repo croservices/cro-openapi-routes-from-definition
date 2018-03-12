@@ -237,4 +237,33 @@ throws-like
     X::Cro::OpenAPI::RoutesFromDefinition::UnimplementedOperations,
     operations => [<createPets listPets showPetById>];
 
+lives-ok
+    {
+        openapi $pet-store, {
+            operation 'listPets', -> {
+            }
+            operation 'createPets', -> {
+            }
+            operation 'showPetById', -> $id {
+            }
+        }
+    },
+    'Valid opperation declarations are accepted';
+
+throws-like
+    {
+        openapi $pet-store, {
+            operation 'listPets', -> {
+            }
+            operation 'createPets', -> {
+            }
+            operation 'surprise', -> {
+            }
+            operation 'showPetById', -> $id {
+            }
+        }
+    },
+    X::Cro::OpenAPI::RoutesFromDefinition::UnspecifiedOperation,
+    operation => 'surprise';
+
 done-testing;
