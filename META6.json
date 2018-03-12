@@ -5,7 +5,8 @@
     "build-depends" : [ ],
     "depends" : [
         "Cro::HTTP",
-        "OpenAPI::Model"
+        "OpenAPI::Model",
+        "OpenAPI::Schema::Validate"
     ],
     "description" : "Easily implement an existing OpenAPI definition, server side, using Cro.",
     "license" : "Artistic-2.0",
