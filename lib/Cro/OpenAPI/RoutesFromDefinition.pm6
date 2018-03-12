@@ -1,3 +1,4 @@
+use Cro::HTTP::Auth;
 use Cro::HTTP::Router;
 use OpenAPI::Model;
 
@@ -22,14 +23,52 @@ class X::Cro::OpenAPI::RoutesFromDefinition::UnspecifiedOperation is Exception {
     }
 }
 
+class X::Cro::OpenAPI::RoutesFromDefinition::WrongPathSegmentCount is Exception {
+    has Str $.operation is required;
+    has Str $.path-template is required;
+    has Int $.expected is required;
+    has Int $.got is required;
+    method message() {
+        "The operation '$!operation' has path '$!path-template'.\n" ~
+        "The implementation should take $!expected route segment(s), but has $!got."
+    }
+}
+
 module Cro::OpenAPI::RoutesFromDefinition {
     class OperationSet is Cro::HTTP::Router::RouteSet {
         my class Operation {
-            has Str $.path-template;
-            has OpenAPI::Model::Path $.path;
-            has OpenAPI::Model::Operation $.operation;
-            has &.implementation is rw;
-            has Bool $.allow-invalid is rw;
+            has Str $.path-template is required;
+            has @!template-segments;
+            has OpenAPI::Model::Path $.path is required;
+            has OpenAPI::Model::Operation $.operation is required;
+            has &.implementation;
+            has Bool $.allow-invalid;
+
+            method TWEAK() {
+                if $!path-template.starts-with('/') {
+                    @!template-segments = $!path-template.substr(1).split('/');
+                }
+                else {
+                    die "Invalid path template '$!path-template' (must start with '/')";
+                }
+            }
+
+            method set-implementation(&!implementation, $!allow-invalid) {
+                my @pos = &!implementation.signature.params.grep(!*.named);
+                @pos.shift if @pos[0] ~~ Cro::HTTP::Auth;
+                my $got = @pos.elems;
+                my $expected = self!required-path-segments();
+                if $got != $expected {
+                    die X::Cro::OpenAPI::RoutesFromDefinition::WrongPathSegmentCount.new(
+                        :operation($!operation.operation-id),
+                        :$!path-template, :$expected, :$got
+                    );
+                }
+            }
+
+            method !required-path-segments() {
+                @!template-segments.grep(/^'{' .+ '}'$/).elems
+            }
         }
 
         has OpenAPI::Model::OpenAPI $.model;
@@ -62,8 +101,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
         method add-operation(Str $operation-id, &implementation, Bool $allow-invalid) {
             with %!operations-by-id{$operation-id} {
-                .implementation = &implementation;
-                .allow-invalid = $allow-invalid;
+                .set-implementation(&implementation, $allow-invalid);
             }
             else {
                 die X::Cro::OpenAPI::RoutesFromDefinition::UnspecifiedOperation.new(

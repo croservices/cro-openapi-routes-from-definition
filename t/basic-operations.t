@@ -266,4 +266,21 @@ throws-like
     X::Cro::OpenAPI::RoutesFromDefinition::UnspecifiedOperation,
     operation => 'surprise';
 
+throws-like
+    {
+        openapi $pet-store, {
+            operation 'listPets', -> {
+            }
+            operation 'createPets', -> {
+            }
+            operation 'showPetById', -> {
+            }
+        }
+    },
+    X::Cro::OpenAPI::RoutesFromDefinition::WrongPathSegmentCount,
+    operation => 'showPetById',
+    path-template => '/pets/{petId}',
+    expected => 1,
+    got => 0;
+
 done-testing;
