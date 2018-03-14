@@ -14,6 +14,7 @@
     "perl" : "6.c",
     "provides" : {
         "Cro::OpenAPI::RoutesFromDefinition": "lib/Cro/OpenAPI/RoutesFromDefinition.pm6"
+        "Cro::OpenAPI::RoutesFromDefinition::Checkers": "lib/Cro/OpenAPI/RoutesFromDefinition/Checkers.pm6"
     },
     "resources" : [ ],
     "source-url" : "",

@@ -1,5 +1,7 @@
 use Cro::HTTP::Auth;
+use Cro::HTTP::Middleware;
 use Cro::HTTP::Router;
+use Cro::OpenAPI::RoutesFromDefinition::Checkers;
 use OpenAPI::Model;
 
 class X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse is Exception {
@@ -85,6 +87,48 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
 
             method prefix-parts { @!prefix-parts }
+        }
+
+        my class RequestCheckMiddleware does Cro::HTTP::Middleware::Conditional {
+            has Cro::OpenAPI::RoutesFromDefinition::Checker $.checker is required;
+            has Bool $!requires-body = $!checker.requires-body;
+
+            method process(Supply $requests) {
+                $!requires-body
+                    ?? self!process-with-body($requests)
+                    !! self!process-simple($requests)
+            }
+
+            method !process-with-body(Supply $requests) {
+                supply whenever $requests -> $request {
+                    whenever $request.body -> $body {
+                        $request.set-body($body);
+                        $!checker.check($request, $body);
+                        emit $request;
+                        CATCH {
+                            when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
+                                note "Request to $request.target() failed validation: " ~
+                                    .reason;
+                                emit Cro::HTTP::Response.new(:400status, :$request);
+                            }
+                        }
+                    }
+                }
+            }
+
+            method !process-simple(Supply $requests) {
+                supply whenever $requests -> $request {
+                    $!checker.check($request, Nil);
+                    emit $request;
+                    CATCH {
+                        when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
+                            note "Request to $request.target() failed validation: " ~
+                                .reason;
+                            emit Cro::HTTP::Response.new(:400status, :$request);
+                        }
+                    }
+                }
+            }
         }
 
         my class OperationHandler does Cro::HTTP::Router::RouteSet::Handler {
@@ -193,9 +237,16 @@ module Cro::OpenAPI::RoutesFromDefinition {
             self!check-unimplemented() unless $ignore-unimplemented;
             for %!operations-by-id.values {
                 if .implementation {
+                    my @before = @.before;
+                    my @after = @.after;
+                    with self!checker-for-request($_) -> $checker {
+                        my $middleware = RequestCheckMiddleware.new(:$checker);
+                        unshift @before, $middleware.request;
+                        push @after, $middleware.response;
+                    }
                     self.handlers.push(OperationHandler.new(
                         :implementation(.implementation), :method(.method),
-                        :prefix(.prefix-parts), :@.before, :@.after,
+                        :prefix(.prefix-parts), :@before, :@after,
                         :@.body-parsers,  :@.body-serializers
                     ));
                 }
@@ -212,6 +263,26 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 die X::Cro::OpenAPI::RoutesFromDefinition::UnimplementedOperations.new:
                     :operations(@operations.sort);
             }
+        }
+
+        method !checker-for-request(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
+            my $operation = $op.operation;
+            my @checkers;
+            with $operation.request-body {
+                my %content-schemas;
+                with .content {
+                    for .kv -> $content-type, $media-type {
+                        %content-schemas{$content-type} = $media-type.schema;
+                    }
+                }
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::BodyChecker.new(
+                   :required(.required), :write,
+                   :%content-schemas
+                );
+            }
+            return @checkers == 1 ?? @checkers[0] !!
+                   @checkers == 0 ?? Nil !!
+                   Cro::OpenAPI::RoutesFromDefinition::AllChecker.new(:@checkers);
         }
     }
 
