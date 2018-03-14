@@ -37,8 +37,10 @@ class X::Cro::OpenAPI::RoutesFromDefinition::WrongPathSegmentCount is Exception 
 module Cro::OpenAPI::RoutesFromDefinition {
     class OperationSet is Cro::HTTP::Router::RouteSet {
         my class Operation {
+            has Str $.method is required;
             has Str $.path-template is required;
             has @!template-segments;
+            has @!prefix-parts;
             has OpenAPI::Model::Path $.path is required;
             has OpenAPI::Model::Operation $.operation is required;
             has &.implementation;
@@ -47,6 +49,18 @@ module Cro::OpenAPI::RoutesFromDefinition {
             method TWEAK() {
                 if $!path-template.starts-with('/') {
                     @!template-segments = $!path-template.substr(1).split('/');
+                    for @!template-segments {
+                        state $seen-non-literal = False;
+                        if /^'{'.+'}'$/ {
+                            $seen-non-literal = True;
+                        }
+                        elsif $seen-non-literal {
+                            die "Non-literal route segment not at start of path template is NYI";
+                        }
+                        else {
+                            push @!prefix-parts, $_;
+                        }
+                    }
                 }
                 else {
                     die "Invalid path template '$!path-template' (must start with '/')";
@@ -69,6 +83,71 @@ module Cro::OpenAPI::RoutesFromDefinition {
             method !required-path-segments() {
                 @!template-segments.grep(/^'{' .+ '}'$/).elems
             }
+
+            method prefix-parts { @!prefix-parts }
+        }
+
+        my class OperationHandler does Cro::HTTP::Router::RouteSet::Handler {
+            has Str $.method;
+            has &.implementation;
+
+            method copy-adding(:@prefix, :@body-parsers!, :@body-serializers!, :@before!, :@after!) {
+                self.bless:
+                    :$!method, :&!implementation,
+                    :prefix[flat @prefix, @!prefix],
+                    :body-parsers[flat @!body-parsers, @body-parsers],
+                    :body-serializers[flat @!body-serializers, @body-serializers],
+                    :before[flat @before, @!before],
+                    :after[flat @!after, @after]
+            }
+
+            method signature() {
+                &!implementation.signature
+            }
+
+            method !invoke-internal(Cro::HTTP::Request $request, Capture $args --> Promise) {
+                my $*CRO-ROUTER-REQUEST = $request;
+                my $response = my $*CRO-ROUTER-RESPONSE := Cro::HTTP::Response.new(:$request);
+                self!add-body-parsers($request);
+                self!add-body-serializers($response);
+                start {
+                    {
+                        &!implementation(|$args);
+                        CATCH {
+                            when X::Cro::HTTP::Router::NoRequestBodyMatch {
+                                $response.status = 400;
+                            }
+                            when X::Cro::BodyParserSelector::NoneApplicable {
+                                $response.status = 400;
+                            }
+                            default {
+                                .note;
+                                $response.status = 500;
+                            }
+                        }
+                    }
+                    $response.status //= 204;
+                    # Close push promises as we don't get a new ones
+                    $response.close-push-promises();
+                    $response
+                }
+            }
+
+            method invoke(Cro::HTTP::Request $request, Capture $args) {
+                if @!before || @!after {
+                    my $current = supply emit $request;
+                    my %connection-state{Mu};
+                    $current = self!append-middleware($current, @!before, %connection-state);
+                    my $response = supply whenever $current -> $req {
+                        whenever self!invoke-internal($req, $args) {
+                            emit $_;
+                        }
+                    }
+                    return self!append-middleware($response, @!after, %connection-state);
+                } else {
+                    return self!invoke-internal($request, $args);
+                }
+            }
         }
 
         has OpenAPI::Model::OpenAPI $.model;
@@ -76,11 +155,11 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
         submethod TWEAK() {
             for $!model.paths -> $paths {
-                for flat $paths.keys Z $paths.values -> Str $path-template, $path {
+                for flat $paths.kv -> Str $path-template, $path {
                     for <get put post delete options head patch trace> -> $method {
                         with $path."$method"() -> $operation {
                             %!operations-by-id{$operation.operation-id} = Operation.new:
-                                :$path-template, :$path, :$operation;
+                                :method($method.uc), :$path-template, :$path, :$operation;
                         }
                     }
                 }
@@ -91,11 +170,11 @@ module Cro::OpenAPI::RoutesFromDefinition {
             die X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse.new(what => $method.lc);
         }
 
-        method include(@, Cro::HTTP::Router::RouteSet) {
+        method add-include(@, Cro::HTTP::Router::RouteSet) {
             die X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse.new(what => 'include');
         }
 
-        method delegate(@, Cro::Transform) {
+        method add-delegate(@, Cro::Transform) {
             die X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse.new(what => 'delegate');
         }
 
@@ -112,6 +191,16 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
         method definition-complete(:$ignore-unimplemented --> Nil) {
             self!check-unimplemented() unless $ignore-unimplemented;
+            for %!operations-by-id.values {
+                if .implementation {
+                    self.handlers.push(OperationHandler.new(
+                        :implementation(.implementation), :method(.method),
+                        :prefix(.prefix-parts), :@.before, :@.after,
+                        :@.body-parsers,  :@.body-serializers
+                    ));
+                }
+            }
+            callsame();
         }
 
         method !check-unimplemented() {

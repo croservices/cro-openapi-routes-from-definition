@@ -4,6 +4,8 @@ use Cro::HTTP::Server;
 use Cro::OpenAPI::RoutesFromDefinition;
 use Test;
 
+my constant TEST_PORT = 29996;
+
 my $pet-store = q:to/OPENAPI/;
     {
         "openapi": "3.0.0",
@@ -282,5 +284,53 @@ throws-like
     path-template => '/pets/{petId}',
     expected => 1,
     got => 0;
+
+subtest 'Basic operation handler invocation' => {
+    my $application = openapi $pet-store, {
+        operation 'listPets', -> {
+            not-found 'application/json', {
+                code => 42,
+                message => 'listPets NYI'
+            };
+        }
+        operation 'createPets', -> {
+            not-found 'application/json', {
+                code => 42,
+                message => 'createPets NYI'
+            };
+        }
+        operation 'showPetById', -> $id {
+            not-found 'application/json', {
+                code => 42,
+                message => "showPetById($id) NYI";
+            };
+        }
+    }
+    my $server = Cro::HTTP::Server.new: :host<0.0.0.0>, :port(TEST_PORT), :$application;
+    $server.start;
+    LEAVE $server.stop;
+
+    sub get-error-json($path, $method, $body?) {
+        await Cro::HTTP::Client."$method"(
+            "http://localhost:{TEST_PORT}$path",
+            |($body ?? { :content-type('application/json'), :$body } !! Empty));
+        CATCH {
+            when X::Cro::HTTP::Error {
+                return await .response.body;
+            }
+        }
+        return "WRONG";
+    }
+
+    is-deeply get-error-json("/pets", "get"),
+        { code => 42, message => 'listPets NYI' },
+        'Can call listPets operation';
+    is-deeply get-error-json("/pets", "post", { :id(123), :name('Dave') }),
+        { code => 42, message => 'createPets NYI' },
+        'Can call createPets operation';
+    is-deeply get-error-json("/pets/101", "get"),
+        { code => 42, message => 'showPetById(101) NYI' },
+        'Can call showPetById operation';
+}
 
 done-testing;
