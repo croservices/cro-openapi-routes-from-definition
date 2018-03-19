@@ -36,6 +36,15 @@ class X::Cro::OpenAPI::RoutesFromDefinition::WrongPathSegmentCount is Exception 
     }
 }
 
+class X::Cro::OpenAPI::RoutesFromDefinition::UnexpectedQueryPrameter is Exception {
+    has Str $.operation is required;
+    has Str $.parameter is required;
+    method message() {
+        "The operation '$!operation' takes a query string parameter '$!parameter', " ~
+        "but this is not declared in the schema"
+    }
+}
+
 module Cro::OpenAPI::RoutesFromDefinition {
     class OperationSet is Cro::HTTP::Router::RouteSet {
         my class Operation {
@@ -70,7 +79,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
 
             method set-implementation(&!implementation, $!allow-invalid) {
-                my @pos = &!implementation.signature.params.grep(!*.named);
+                my (:@pos, :@named) := &!implementation.signature.params.classify({ .named ?? 'named' !! 'pos' });
                 @pos.shift if @pos[0] ~~ Cro::HTTP::Auth;
                 my $got = @pos.elems;
                 my $expected = self!required-path-segments();
@@ -80,6 +89,19 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         :$!path-template, :$expected, :$got
                     );
                 }
+                my $ok-query-segments = set self.query-string-parameters.map(*.name);
+                for @named {
+                    when Cro::HTTP::Router::Header { }
+                    when Cro::HTTP::Router::Cookie { }
+                    default {
+                        my $name = .named_names[0];
+                        if $name !(elem) $ok-query-segments {
+                            die X::Cro::OpenAPI::RoutesFromDefinition::UnexpectedQueryPrameter.new:
+                                :operation($!operation.operation-id),
+                                :parameter($name)
+                        }
+                    }
+                }
             }
 
             method !required-path-segments() {
@@ -87,6 +109,10 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
 
             method prefix-parts { @!prefix-parts }
+
+            method query-string-parameters() {
+                flat $!path.parameters.grep(*.in eq 'query'), $!operation.parameters.grep(*.in eq 'query')
+            }
         }
 
         my class RequestCheckMiddleware does Cro::HTTP::Middleware::Conditional {
