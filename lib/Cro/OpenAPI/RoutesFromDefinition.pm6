@@ -370,7 +370,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         %content-schemas{$content-type} = $media-type.schema;
                     }
                     push @checkers, Cro::OpenAPI::RoutesFromDefinition::BodyChecker.new:
-                        :required, :read, :%content-schemas;
+                        :!required, :read, :%content-schemas;
                 }
                 %checker-by-code{$status} = @checkers == 0
                      ?? Cro::OpenAPI::RoutesFromDefinition::PassChecker.new
