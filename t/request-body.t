@@ -65,7 +65,9 @@ my $api-doc = q:to/OPENAPI/;
 
 my $application = openapi $api-doc, {
     operation 'createPets', -> {
-        created "/pets/1234";
+        request-body -> (:$id, *%) {
+            created "/pets/$id";
+        }
     }
 }
 
@@ -77,12 +79,14 @@ my $uri = "http://localhost:{TEST_PORT}/pets";
     my $resp = await Cro::HTTP::Client.post: $uri, :content-type<application/json>,
         :body{ :id(1234), :name('Claire the Cat'), :tag('cute') };
     is $resp.status, 201, 'Valid request with all allowed props gets 201 status response';
+    is $resp.header('location'), '/pets/1234', 'Accessed body fine and used it in response';
 }
 
 {
     my $resp = await Cro::HTTP::Client.post: $uri, :content-type<application/json>,
-        :body{ :id(1234), :name('Claire the Cat') };
+        :body{ :id(1235), :name('Claire the Cat') };
     is $resp.status, 201, 'Valid request without optional prop gets 201 status response';
+    is $resp.header('location'), '/pets/1235', 'Accessed body fine and used it in response';
 }
 
 throws-like
