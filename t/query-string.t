@@ -38,12 +38,7 @@ my $api-doc = q:to/OPENAPI/;
                                 "enum": ["dog", "cat", "parrot"]
                             }
                         }
-                    ],
-                    "responses": {
-                        "201": {
-                            "description": "Null response"
-                        }
-                    }
+                    ]
                 }
             }
         },
