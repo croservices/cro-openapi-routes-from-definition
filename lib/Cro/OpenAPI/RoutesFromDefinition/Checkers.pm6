@@ -73,4 +73,55 @@ package Cro::OpenAPI::RoutesFromDefinition {
             True
         }
     }
+
+    class QueryStringChecker does Checker {
+        has %!required;
+        has %!expected;
+        has %!schemas;
+        method TWEAK(:@parameters) {
+            for @parameters {
+                %!expected{.name} = True;
+                %!required{.name} = True if .required;
+                if .schema -> $schema {
+                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema);
+                }
+            }
+        }
+        method check(Cro::HTTP::Message $m, $ --> Nil) {
+            my %required-unseen = %!required;
+            for $m.query-hash.kv -> $name, $value {
+                unless %!expected{$name}:exists {
+                    die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                        http-message => $m,
+                        reason => "unexpected query string parameter '$name'"
+                    );
+                }
+                %required-unseen{$name}:delete;
+                with %!schemas{$name} {
+                    my $result = .validate($value);
+                    unless $result {
+                        $result = .validate(val($value));
+                    }
+                    unless $result {
+                        given $result.exception {
+                            die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                                http-message => $m,
+                                reason => "validation of '$name' query string parameter " ~
+                                          "schema failed at $_.path(): $_.reason()"
+                            );
+                        }
+                    }
+                }
+            }
+            if %required-unseen {
+                die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                    http-message => $m,
+                    reason => "missing required query string parameter '{%required-unseen.keys[0]}'"
+                );
+            }
+        }
+        method requires-body(--> Bool) {
+            False
+        }
+    }
 }

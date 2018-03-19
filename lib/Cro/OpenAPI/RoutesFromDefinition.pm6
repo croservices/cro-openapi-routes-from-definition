@@ -306,6 +306,9 @@ module Cro::OpenAPI::RoutesFromDefinition {
                    :%content-schemas
                 );
             }
+            if $op.query-string-parameters -> @parameters {
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::QueryStringChecker.new(:@parameters);
+            }
             return @checkers == 1 ?? @checkers[0] !!
                    @checkers == 0 ?? Nil !!
                    Cro::OpenAPI::RoutesFromDefinition::AllChecker.new(:@checkers);
