@@ -124,4 +124,31 @@ package Cro::OpenAPI::RoutesFromDefinition {
             False
         }
     }
+
+    class ResponseChecker does Checker {
+        has %.checker-by-code;
+        method check(Cro::HTTP::Message $m, $body --> Nil) {
+            with %!checker-by-code{$m.status} {
+                .check($m, $body);
+            }
+            elsif $m.status != 500 {
+                die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                    http-message => $m,
+                    reason => "this response may not produce status $m.status()"
+                );
+            }
+        }
+        method requires-body(--> Bool) {
+            so any(%!checker-by-code.values).requires-body
+        }
+    }
+
+    class PassChecker does Checker {
+        method check($, $ --> Nil) {
+            # Always accept
+        }
+        method requires-body(--> Bool) {
+            False
+        }
+    }
 }

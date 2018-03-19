@@ -157,6 +157,48 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
         }
 
+        my class ResponseCheckMiddleware does Cro::HTTP::Middleware::Response {
+            has Cro::OpenAPI::RoutesFromDefinition::Checker $.checker is required;
+            has Bool $!requires-body = $!checker.requires-body;
+
+            method process(Supply $requests) {
+                $!requires-body
+                    ?? self!process-with-body($requests)
+                    !! self!process-simple($requests)
+            }
+
+            method !process-with-body(Supply $responses) {
+                supply whenever $responses -> $response {
+                    whenever $response.body -> $body {
+                        $response.set-body($body);
+                        $!checker.check($response, $body);
+                        emit $response;
+                        CATCH {
+                            when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
+                                note "Response from $response.request().target() failed validation: " ~
+                                    .reason;
+                                emit Cro::HTTP::Response.new(:500status, :request($response.request));
+                            }
+                        }
+                    }
+                }
+            }
+
+            method !process-simple(Supply $responses) {
+                supply whenever $responses -> $response {
+                    $!checker.check($response, Nil);
+                    emit $response;
+                    CATCH {
+                        when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
+                            note "Response from $response.request().target() failed validation: " ~
+                                .reason;
+                            emit Cro::HTTP::Response.new(:500status, :request($response.request));
+                        }
+                    }
+                }
+            }
+        }
+
         my class OperationHandler does Cro::HTTP::Router::RouteSet::Handler {
             has Str $.method;
             has &.implementation;
@@ -265,6 +307,9 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 if .implementation {
                     my @before = @.before;
                     my @after = @.after;
+                    with self!checker-for-response($_) -> $checker {
+                        push @after, ResponseCheckMiddleware.new(:$checker);
+                    }
                     with self!checker-for-request($_) -> $checker {
                         my $middleware = RequestCheckMiddleware.new(:$checker);
                         unshift @before, $middleware.request;
@@ -312,6 +357,30 @@ module Cro::OpenAPI::RoutesFromDefinition {
             return @checkers == 1 ?? @checkers[0] !!
                    @checkers == 0 ?? Nil !!
                    Cro::OpenAPI::RoutesFromDefinition::AllChecker.new(:@checkers);
+        }
+
+        method !checker-for-response(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
+            my $operation = $op.operation;
+            my %checker-by-code;
+            for $operation.responses.kv -> $status, $response {
+                my @checkers;
+                with $response.content {
+                    my %content-schemas;
+                    for .kv -> $content-type, $media-type {
+                        %content-schemas{$content-type} = $media-type.schema;
+                    }
+                    push @checkers, Cro::OpenAPI::RoutesFromDefinition::BodyChecker.new:
+                        :required, :read, :%content-schemas;
+                }
+                %checker-by-code{$status} = @checkers == 0
+                     ?? Cro::OpenAPI::RoutesFromDefinition::PassChecker.new
+                     !! @checkers == 1
+                        ?? @checkers[0]
+                        !! Cro::OpenAPI::RoutesFromDefinition::AllChecker.new(:@checkers);
+            }
+            return %checker-by-code
+                ?? Cro::OpenAPI::RoutesFromDefinition::ResponseChecker.new(:%checker-by-code)
+                !! Nil;
         }
     }
 
