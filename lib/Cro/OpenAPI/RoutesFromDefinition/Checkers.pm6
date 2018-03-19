@@ -128,7 +128,7 @@ package Cro::OpenAPI::RoutesFromDefinition {
     class ResponseChecker does Checker {
         has %.checker-by-code;
         method check(Cro::HTTP::Message $m, $body --> Nil) {
-            with %!checker-by-code{$m.status} {
+            with %!checker-by-code{$m.status} // %!checker-by-code<default> {
                 .check($m, $body);
             }
             elsif $m.status != 500 {
