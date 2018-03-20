@@ -1,24 +1,23 @@
 {
-    "authors" : [
-        "Jonathan Worthington <jonathan@edument.se>"
-    ],
-    "build-depends" : [ ],
-    "depends" : [
+    "depends": [
         "Cro::HTTP",
         "OpenAPI::Model",
         "OpenAPI::Schema::Validate"
     ],
-    "description" : "Easily implement an existing OpenAPI definition, server side, using Cro.",
-    "license" : "Artistic-2.0",
-    "name" : "Cro::OpenAPI::RoutesFromDefinition",
-    "perl" : "6.c",
-    "provides" : {
-        "Cro::OpenAPI::RoutesFromDefinition": "lib/Cro/OpenAPI/RoutesFromDefinition.pm6"
-        "Cro::OpenAPI::RoutesFromDefinition::Checkers": "lib/Cro/OpenAPI/RoutesFromDefinition/Checkers.pm6"
+    "description": "Easily implement an existing OpenAPI definition, server side, using Cro.",
+    "resources": [],
+    "version": "0.0.1",
+    "tags": [],
+    "license": "Artistic-2.0",
+    "source-url": "",
+    "provides": {
+        "Cro::OpenAPI::RoutesFromDefinition": "lib/Cro/OpenAPI/RoutesFromDefinition.pm6",
+        "Cro::OpenAPI::RoutesFromDefinition::Checkers": "lib/Cro/OpenAPI/RoutesFromDefinition/Checkers.pm6",
+        "Cro::OpenAPI::RoutesFromDefinition::AdaptHandler": "lib/Cro/OpenAPI/RoutesFromDefinition/AdaptHandler.pm6"
     },
-    "resources" : [ ],
-    "source-url" : "",
-    "tags" : [ ],
-    "test-depends" : [ ],
-    "version" : "0.0.1"
+    "name": "Cro::OpenAPI::RoutesFromDefinition",
+    "perl": "6.c",
+    "build-depends": [],
+    "test-depends": [],
+    "authors": ["Jonathan Worthington <jonathan@edument.se>"]
 }

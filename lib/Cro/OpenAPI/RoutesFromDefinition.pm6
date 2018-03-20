@@ -1,6 +1,7 @@
 use Cro::HTTP::Auth;
 use Cro::HTTP::Middleware;
 use Cro::HTTP::Router;
+use Cro::OpenAPI::RoutesFromDefinition::AdaptHandler;
 use Cro::OpenAPI::RoutesFromDefinition::Checkers;
 use OpenAPI::Model;
 
@@ -50,8 +51,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
         my class Operation {
             has Str $.method is required;
             has Str $.path-template is required;
-            has @!template-segments;
-            has @!prefix-parts;
+            has @.template-segments;
             has OpenAPI::Model::Path $.path is required;
             has OpenAPI::Model::Operation $.operation is required;
             has &.implementation;
@@ -60,18 +60,6 @@ module Cro::OpenAPI::RoutesFromDefinition {
             method TWEAK() {
                 if $!path-template.starts-with('/') {
                     @!template-segments = $!path-template.substr(1).split('/');
-                    for @!template-segments {
-                        state $seen-non-literal = False;
-                        if /^'{'.+'}'$/ {
-                            $seen-non-literal = True;
-                        }
-                        elsif $seen-non-literal {
-                            die "Non-literal route segment not at start of path template is NYI";
-                        }
-                        else {
-                            push @!prefix-parts, $_;
-                        }
-                    }
                 }
                 else {
                     die "Invalid path template '$!path-template' (must start with '/')";
@@ -80,7 +68,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
             method set-implementation(&!implementation, $!allow-invalid) {
                 my (:@pos, :@named) := &!implementation.signature.params.classify({ .named ?? 'named' !! 'pos' });
-                @pos.shift if @pos[0] ~~ Cro::HTTP::Auth;
+                @pos.shift if @pos[0].?type ~~ Cro::HTTP::Auth;
                 my $got = @pos.elems;
                 my $expected = self!required-path-segments();
                 if $got != $expected {
@@ -107,8 +95,6 @@ module Cro::OpenAPI::RoutesFromDefinition {
             method !required-path-segments() {
                 @!template-segments.grep(/^'{' .+ '}'$/).elems
             }
-
-            method prefix-parts { @!prefix-parts }
 
             method query-string-parameters() {
                 self!filter-parameters('query')
@@ -210,10 +196,19 @@ module Cro::OpenAPI::RoutesFromDefinition {
         my class OperationHandler does Cro::HTTP::Router::RouteSet::Handler {
             has Str $.method;
             has &.implementation;
+            has @.template-segments;
+            has AdaptedSignature $!adapted-sig;
+
+            method TWEAK() {
+                $!adapted-sig = AdaptedSignature.new(
+                    real-signature => &!implementation.signature,
+                    :@!template-segments
+                );
+            }
 
             method copy-adding(:@prefix, :@body-parsers!, :@body-serializers!, :@before!, :@after!) {
                 self.bless:
-                    :$!method, :&!implementation,
+                    :$!method, :&!implementation, :@!template-segments,
                     :prefix[flat @prefix, @!prefix],
                     :body-parsers[flat @!body-parsers, @body-parsers],
                     :body-serializers[flat @!body-serializers, @body-serializers],
@@ -222,7 +217,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
 
             method signature() {
-                &!implementation.signature
+                $!adapted-sig
             }
 
             method !invoke-internal(Cro::HTTP::Request $request, Capture $args --> Promise) {
@@ -232,7 +227,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 self!add-body-serializers($response);
                 start {
                     {
-                        &!implementation(|$args);
+                        &!implementation(|$!adapted-sig.filter-arguments($args));
                         CATCH {
                             when X::Cro::HTTP::Router::NoRequestBodyMatch {
                                 $response.status = 400;
@@ -325,7 +320,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                     }
                     self.handlers.push(OperationHandler.new(
                         :implementation(.implementation), :method(.method),
-                        :prefix(.prefix-parts), :@before, :@after,
+                        :template-segments(.template-segments), :@before, :@after,
                         :@.body-parsers,  :@.body-serializers
                     ));
                 }
