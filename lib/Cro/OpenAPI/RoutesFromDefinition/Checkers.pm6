@@ -23,7 +23,7 @@ package Cro::OpenAPI::RoutesFromDefinition {
             .check($m, $body) for @!checkers;
         }
         method requires-body(--> Bool) {
-            any(@!checkers>>.requires-body)
+            so any(@!checkers>>.requires-body)
         }
     }
 
@@ -117,6 +117,50 @@ package Cro::OpenAPI::RoutesFromDefinition {
                 die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
                     http-message => $m,
                     reason => "missing required query string parameter '{%required-unseen.keys[0]}'"
+                );
+            }
+        }
+        method requires-body(--> Bool) {
+            False
+        }
+    }
+
+    class HeaderChecker does Checker {
+        has %!required;
+        has %!schemas;
+        method TWEAK(:@parameters) {
+            for @parameters {
+                %!required{.name} = True if .required;
+                if .schema -> $schema {
+                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema);
+                }
+            }
+        }
+        method check(Cro::HTTP::Message $m, $ --> Nil) {
+            my %required-unseen = %!required;
+            for $m.headers.map(*.name).unique -> $name {
+                %required-unseen{$name}:delete;
+                with %!schemas{$name} {
+                    my $value = $m.header($name);
+                    my $result = .validate($value);
+                    unless $result {
+                        $result = .validate(val($value));
+                    }
+                    unless $result {
+                        given $result.exception {
+                            die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                                http-message => $m,
+                                reason => "validation of '$name' header " ~
+                                          "schema failed at $_.path(): $_.reason()"
+                            );
+                        }
+                    }
+                }
+            }
+            if %required-unseen {
+                die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                    http-message => $m,
+                    reason => "missing required header '{%required-unseen.keys[0]}'"
                 );
             }
         }

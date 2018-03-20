@@ -111,7 +111,15 @@ module Cro::OpenAPI::RoutesFromDefinition {
             method prefix-parts { @!prefix-parts }
 
             method query-string-parameters() {
-                flat $!path.parameters.grep(*.in eq 'query'), $!operation.parameters.grep(*.in eq 'query')
+                self!filter-parameters('query')
+            }
+
+            method header-parameters() {
+                self!filter-parameters('header')
+            }
+
+            method !filter-parameters($in) {
+                flat $!path.parameters.grep(*.in eq $in), $!operation.parameters.grep(*.in eq $in)
             }
         }
 
@@ -354,23 +362,42 @@ module Cro::OpenAPI::RoutesFromDefinition {
             if $op.query-string-parameters -> @parameters {
                 push @checkers, Cro::OpenAPI::RoutesFromDefinition::QueryStringChecker.new(:@parameters);
             }
+            if $op.header-parameters -> @parameters {
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
+            }
             return @checkers == 1 ?? @checkers[0] !!
                    @checkers == 0 ?? Nil !!
                    Cro::OpenAPI::RoutesFromDefinition::AllChecker.new(:@checkers);
         }
 
+        my class ParameterishHeader {
+            has $.name;
+            has $.required;
+            has %.schema;
+        }
         method !checker-for-response(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
             my $operation = $op.operation;
             my %checker-by-code;
             for $operation.responses.kv -> $status, $response {
                 my @checkers;
-                with $response.content {
+                if $response.content -> %content {
                     my %content-schemas;
-                    for .kv -> $content-type, $media-type {
+                    for %content.kv -> $content-type, $media-type {
                         %content-schemas{$content-type} = $media-type.schema;
                     }
                     push @checkers, Cro::OpenAPI::RoutesFromDefinition::BodyChecker.new:
                         :!required, :read, :%content-schemas;
+                }
+                if $response.headers -> %headers {
+                    my @parameters;
+                    for %headers.kv -> $name, $value {
+                        push @parameters, ParameterishHeader.new(
+                            name => $name,
+                            required => $value.required,
+                            schema => $value.schema
+                        );
+                    }
+                    push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
                 }
                 %checker-by-code{$status} = @checkers == 0
                      ?? Cro::OpenAPI::RoutesFromDefinition::PassChecker.new
