@@ -47,6 +47,10 @@ class X::Cro::OpenAPI::RoutesFromDefinition::UnexpectedQueryPrameter is Exceptio
 }
 
 module Cro::OpenAPI::RoutesFromDefinition {
+    role RequestValidationError {
+        has X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed $.validation-exception;
+    }
+
     class OperationSet is Cro::HTTP::Router::RouteSet {
         my class Operation {
             has Str $.method is required;
@@ -116,6 +120,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
         my class RequestCheckMiddleware does Cro::HTTP::Middleware::Conditional {
             has Cro::OpenAPI::RoutesFromDefinition::Checker $.checker is required;
             has Bool $!requires-body = $!checker.requires-body;
+            has Bool $.allow-invalid;
 
             method process(Supply $requests) {
                 $!requires-body
@@ -131,10 +136,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         emit $request;
                         CATCH {
                             when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
-                                note "Request to $request.target() failed validation: " ~
-                                    .reason;
-                                my $status = .bad-path ?? 404 !! 400;
-                                emit Cro::HTTP::Response.new(:$status, :$request);
+                                emit self!handle-error($request, $_);
                             }
                         }
                     }
@@ -147,12 +149,21 @@ module Cro::OpenAPI::RoutesFromDefinition {
                     emit $request;
                     CATCH {
                         when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
-                            note "Request to $request.target() failed validation: " ~
-                                .reason;
-                            my $status = .bad-path ?? 404 !! 400;
-                            emit Cro::HTTP::Response.new(:$status, :$request);
+                            emit self!handle-error($request, $_);
                         }
                     }
+                }
+            }
+
+            method !handle-error($request, $ex) {
+                note "Request to $request.target() failed validation: $ex.reason()";
+                if $!allow-invalid {
+                    $request does RequestValidationError($ex);
+                    return $request;
+                }
+                else {
+                    my $status = $ex.bad-path ?? 404 !! 400;
+                    return Cro::HTTP::Response.new(:$status, :$request);
                 }
             }
         }
@@ -175,9 +186,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         emit $response;
                         CATCH {
                             when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
-                                note "Response from $response.request().target() failed validation: " ~
-                                    .reason;
-                                emit Cro::HTTP::Response.new(:500status, :request($response.request));
+                                emit self!handle-error($response, $_);
                             }
                         }
                     }
@@ -190,12 +199,15 @@ module Cro::OpenAPI::RoutesFromDefinition {
                     emit $response;
                     CATCH {
                         when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
-                            note "Response from $response.request().target() failed validation: " ~
-                                .reason;
-                            emit Cro::HTTP::Response.new(:500status, :request($response.request));
+                            emit self!handle-error($response, $_);
                         }
                     }
                 }
+            }
+
+            method !handle-error($response, $ex) {
+                note "Response from $response.request().target() failed validation: $ex.reason()";
+                return Cro::HTTP::Response.new(:500status, :request($response.request));
             }
         }
 
@@ -322,7 +334,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         }
                     }
                     with self!checker-for-request($_) -> $checker {
-                        my $middleware = RequestCheckMiddleware.new(:$checker);
+                        my $middleware = RequestCheckMiddleware.new(:$checker, :allow-invalid(.allow-invalid));
                         unshift @before, $middleware.request;
                         push @after, $middleware.response;
                     }
@@ -444,5 +456,12 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 die "Can only use `operation` inside of an `openapi` block";
             }
         }
+    }
+
+    sub request-validation-error() is export {
+        given request -> $req {
+            return $req.validation-exception if $req ~~ RequestValidationError;
+        }
+        return Nil;
     }
 }

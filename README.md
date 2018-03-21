@@ -219,11 +219,20 @@ data.
 
 To manually handle request validation errors, pass `:allow-invalid` to the
 `operation` sub. The `request-validation-error` sub can then be used in order
-to check if there is a validation error and fetch it if so.
+to check if there is a validation error. If there is, then it will be populated
+with an instance of `X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed`, which
+is a subclass of `Exception`. It has the properties:
+
+* `http-message` - the request that failed to parse. Same as `request` in the
+  scope of a handler.
+* `reason` - a string explaining the reason that validation failed
+
+If there is no request validation error, then `Nil` is returned, meaning it can be
+tested using `with` or `without`.
 
     operation 'foo', :allow-invalid, -> $path-param {
         with request-validation-error() -> $error {
-            content 'application/json', { :$error };
+            content 'application/json', { :result('error'), :reason($error.reason) };
         }
         else {
             ???;
