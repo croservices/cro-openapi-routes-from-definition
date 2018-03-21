@@ -310,14 +310,16 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
         }
 
-        method definition-complete(:$ignore-unimplemented --> Nil) {
+        method definition-complete(:$ignore-unimplemented, :$validate-responses --> Nil) {
             self!check-unimplemented() unless $ignore-unimplemented;
             for %!operations-by-id.values {
                 if .implementation {
                     my @before = @.before;
                     my @after = @.after;
-                    with self!checker-for-response($_) -> $checker {
-                        push @after, ResponseCheckMiddleware.new(:$checker);
+                    if $validate-responses {
+                        with self!checker-for-response($_) -> $checker {
+                            push @after, ResponseCheckMiddleware.new(:$checker);
+                        }
                     }
                     with self!checker-for-request($_) -> $checker {
                         my $middleware = RequestCheckMiddleware.new(:$checker);
@@ -429,7 +431,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             !! OpenAPI::Model.from-yaml($openapi-document);
         my $*CRO-ROUTE-SET = OperationSet.new(:$model);
         implementation();
-        $*CRO-ROUTE-SET.definition-complete(:$ignore-unimplemented);
+        $*CRO-ROUTE-SET.definition-complete(:$ignore-unimplemented, :$validate-responses);
         return $*CRO-ROUTE-SET;
     }
 
