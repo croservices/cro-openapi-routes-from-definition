@@ -165,14 +165,14 @@ throws-like
 
 {
     my $resp = await Cro::HTTP::Client.get: "$uri/header-out?type=both";
-    is $resp.status, 200, 'Valid 200 response is returend when response has both readers';
+    is $resp.status, 200, 'Valid 200 response is returend when response has both headers';
     is $resp.header('X-Remaining'), 100, 'Correct value of requied header';
     is $resp.header('X-FreeRemaining'), 5, 'Correct value of optional header';
 }
 
 {
     my $resp = await Cro::HTTP::Client.get: "$uri/header-out?type=required";
-    is $resp.status, 200, 'Valid 200 response is returend when response has both readers';
+    is $resp.status, 200, 'Valid 200 response is returend when response has required header';
     is $resp.header('X-Remaining'), 100, 'Correct value of requied header';
     nok defined($resp.header('X-FreeRemaining')), 'No optional header';
 }
