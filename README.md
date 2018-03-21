@@ -123,9 +123,6 @@ The `openapi` sub may be passed the following options:
   an error being raised by the `openapi` sub. This is to help you understand
   when an API has not been completely implemented. Setting this option will
   cause unimplemented operations to be ignored instead.
-* `:implement-examples` - if this is set to True then, when an operation is
-  not implemented but there are response examples, then the example will be
-  used to provide a dummy response.
 * `:!validate-responses` - this option defaults to True, but may be set to
   `False`. If set to False, then responses will not be validated. This may be
   useful for increasing production performance, once confident the API has

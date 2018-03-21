@@ -424,7 +424,6 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
     multi openapi(Str:D $openapi-document, &implementation,
                   Bool() :$ignore-unimplemented = False,
-                  Bool() :$implement-examples = False,
                   Bool() :$validate-responses = True) is export {
         my $model = $openapi-document ~~ /^\s*'{'/
             ?? OpenAPI::Model.from-json($openapi-document)
