@@ -5,6 +5,7 @@ use OpenAPI::Schema::Validate;
 class X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed is Exception {
     has Cro::HTTP::Message $.http-message is required;
     has Str $.reason is required;
+    has Bool $.bad-path = False;
     method message() {
         my $what = $!http-message ~~ Cro::HTTP::Request ?? 'request' !! 'response';
         "OpenAPI $what validation failed: $!reason"
@@ -162,6 +163,51 @@ package Cro::OpenAPI::RoutesFromDefinition {
                     http-message => $m,
                     reason => "missing required header '{%required-unseen.keys[0]}'"
                 );
+            }
+        }
+        method requires-body(--> Bool) {
+            False
+        }
+    }
+
+    class PathChecker does Checker {
+        my class Check {
+            has Str $.name;
+            has Int $.index;
+            has OpenAPI::Schema::Validate $.schema;
+        }
+        has Check @!checks;
+        method TWEAK(:@parameters, :@template-segments) {
+            for @parameters -> $param {
+                with @template-segments.first(:k, '{' ~ $param.name ~ '}') -> $index {
+                    with $param.schema -> $schema {
+                        push @!checks, Check.new(:$index, :name($param.name),
+                            :schema(OpenAPI::Schema::Validate.new(:$schema)));
+                    }
+                }
+                else {
+                    die "Template parameter '$param.name()' not found in template '/@template-segments.join('/')'";
+                }
+            }
+        }
+        method check(Cro::HTTP::Message $m, $ --> Nil) {
+            my @segs = $m.path-segments;
+            for @!checks -> $check {
+                my $value = @segs[$check.index];
+                my $result = $check.schema.validate($value);
+                unless $result {
+                    $result = $check.schema.validate(val($value));
+                }
+                unless $result {
+                    given $result.exception {
+                        die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                            http-message => $m,
+                            bad-path => True,
+                            reason => "validation of route segment '$check.name()' schema " ~
+                                "failed at $_.path(): $_.reason()"
+                        );
+                    }
+                }
             }
         }
         method requires-body(--> Bool) {

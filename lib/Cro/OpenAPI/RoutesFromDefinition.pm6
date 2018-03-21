@@ -96,6 +96,10 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 @!template-segments.grep(/^'{' .+ '}'$/).elems
             }
 
+            method path-parameters() {
+                self!filter-parameters('path')
+            }
+
             method query-string-parameters() {
                 self!filter-parameters('query')
             }
@@ -129,7 +133,8 @@ module Cro::OpenAPI::RoutesFromDefinition {
                             when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
                                 note "Request to $request.target() failed validation: " ~
                                     .reason;
-                                emit Cro::HTTP::Response.new(:400status, :$request);
+                                my $status = .bad-path ?? 404 !! 400;
+                                emit Cro::HTTP::Response.new(:$status, :$request);
                             }
                         }
                     }
@@ -144,7 +149,8 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         when X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed {
                             note "Request to $request.target() failed validation: " ~
                                 .reason;
-                            emit Cro::HTTP::Response.new(:400status, :$request);
+                            my $status = .bad-path ?? 404 !! 400;
+                            emit Cro::HTTP::Response.new(:$status, :$request);
                         }
                     }
                 }
@@ -342,6 +348,16 @@ module Cro::OpenAPI::RoutesFromDefinition {
         method !checker-for-request(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
             my $operation = $op.operation;
             my @checkers;
+            if $op.path-parameters -> @parameters {
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::PathChecker.new(
+                        :@parameters, :template-segments($op.template-segments));
+            }
+            if $op.query-string-parameters -> @parameters {
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::QueryStringChecker.new(:@parameters);
+            }
+            if $op.header-parameters -> @parameters {
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
+            }
             with $operation.request-body {
                 my %content-schemas;
                 with .content {
@@ -353,12 +369,6 @@ module Cro::OpenAPI::RoutesFromDefinition {
                    :required(.required), :write,
                    :%content-schemas
                 );
-            }
-            if $op.query-string-parameters -> @parameters {
-                push @checkers, Cro::OpenAPI::RoutesFromDefinition::QueryStringChecker.new(:@parameters);
-            }
-            if $op.header-parameters -> @parameters {
-                push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
             }
             return @checkers == 1 ?? @checkers[0] !!
                    @checkers == 0 ?? Nil !!
