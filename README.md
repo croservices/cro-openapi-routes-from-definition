@@ -95,7 +95,7 @@ of an `openapi` block, and using them will produce an error. Instead, the
 `operation` sub should be used to specify the implementations of operations
 defined by the OpenAPI document. The URI patterns to match will be taken from
 the OpenAPI document, and need not be repeated. Similarly, `include` and
-`delegate` are not availble either (a form of `include` may be supported in
+`delegate` are not available either (a form of `include` may be supported in
 the future in order to allow for breaking up the definition of a large API
 over multiple files).
 
