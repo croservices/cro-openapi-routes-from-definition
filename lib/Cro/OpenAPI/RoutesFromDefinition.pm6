@@ -112,6 +112,10 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 self!filter-parameters('header')
             }
 
+            method cookie-parameters() {
+                self!filter-parameters('cookie')
+            }
+
             method !filter-parameters($in) {
                 flat $!path.parameters.grep(*.in eq $in), $!operation.parameters.grep(*.in eq $in)
             }
@@ -360,7 +364,6 @@ module Cro::OpenAPI::RoutesFromDefinition {
         }
 
         method !checker-for-request(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
-            my $operation = $op.operation;
             my @checkers;
             if $op.path-parameters -> @parameters {
                 push @checkers, Cro::OpenAPI::RoutesFromDefinition::PathChecker.new(
@@ -372,7 +375,10 @@ module Cro::OpenAPI::RoutesFromDefinition {
             if $op.header-parameters -> @parameters {
                 push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
             }
-            with $operation.request-body {
+            if $op.cookie-parameters -> @parameters {
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::CookieChecker.new(:@parameters);
+            }
+            with $op.operation.request-body {
                 my %content-schemas;
                 with .content {
                     for .kv -> $content-type, $media-type {

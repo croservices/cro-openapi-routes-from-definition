@@ -170,6 +170,49 @@ package Cro::OpenAPI::RoutesFromDefinition {
         }
     }
 
+    class CookieChecker does Checker {
+        has %!required;
+        has %!schemas;
+        method TWEAK(:@parameters) {
+            for @parameters {
+                %!required{.name} = True if .required;
+                if .schema -> $schema {
+                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema);
+                }
+            }
+        }
+        method check(Cro::HTTP::Message $m, $ --> Nil) {
+            my %required-unseen = %!required;
+            for $m.cookie-hash.kv -> $name, $value {
+                %required-unseen{$name}:delete;
+                with %!schemas{$name} {
+                    my $result = .validate($value);
+                    unless $result {
+                        $result = .validate(val($value));
+                    }
+                    unless $result {
+                        given $result.exception {
+                            die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                                http-message => $m,
+                                reason => "validation of '$name' cookie " ~
+                                          "schema failed at $_.path(): $_.reason()"
+                            );
+                        }
+                    }
+                }
+            }
+            if %required-unseen {
+                die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
+                    http-message => $m,
+                    reason => "missing required cookie '{%required-unseen.keys[0]}'"
+                );
+            }
+        }
+        method requires-body(--> Bool) {
+            False
+        }
+    }
+
     class PathChecker does Checker {
         my class Check {
             has Str $.name;
