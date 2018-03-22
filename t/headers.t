@@ -111,7 +111,7 @@ my $application = openapi $api-doc, {
 
 my $server = Cro::HTTP::Server.new: :host<0.0.0.0>, :port(TEST_PORT), :$application;
 $server.start;
-my $uri = "http://localhost:{TEST_PORT}";
+my $uri = "http://127.0.0.1:{TEST_PORT}";
 
 {
     my $resp = await Cro::HTTP::Client.get: "$uri/header-in", headers => {

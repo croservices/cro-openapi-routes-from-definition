@@ -312,7 +312,7 @@ subtest 'Basic operation handler invocation' => {
 
     sub get-error-json($path, $method, $body?) {
         await Cro::HTTP::Client."$method"(
-            "http://localhost:{TEST_PORT}$path",
+            "http://127.0.0.1:{TEST_PORT}$path",
             |($body ?? { :content-type('application/json'), :$body } !! Empty));
         CATCH {
             when X::Cro::HTTP::Error {
