@@ -55,7 +55,7 @@ my $api-doc = q:to/OPENAPI/;
     }
     OPENAPI
 
-my $uri = "http://localhost:{TEST_PORT}/test";
+my $uri = "http://127.0.0.1:{TEST_PORT}/test";
 
 {
     my $application = openapi $api-doc, {

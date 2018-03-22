@@ -73,7 +73,7 @@ my $application = openapi $api-doc, {
 
 my $server = Cro::HTTP::Server.new: :host<0.0.0.0>, :port(TEST_PORT), :$application;
 $server.start;
-my $uri = "http://localhost:{TEST_PORT}/pets";
+my $uri = "http://127.0.0.1:{TEST_PORT}/pets";
 
 {
     my $resp = await Cro::HTTP::Client.post: $uri, :content-type<application/json>,
