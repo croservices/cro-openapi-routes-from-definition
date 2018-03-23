@@ -242,7 +242,57 @@ tested using `with` or `without`.
 
 ## Security requirements
 
-Security requirement validation is not yet provided by this module.
+Enforcing security requirements involves:
+
+* Implementing the `Cro::OpenAPI::RoutesFromDefinition::SecurityChecker` role
+* Passing that using the `security` named parameter to the `openapi` function
+
+Implementing the role requires implementing a single method, which receives the
+security scheme to enforce, the HTTP request object, an array of requirements
+(optional, and only applicable to OpenID) and the operation ID (also optional).
+It should return `True` if the requester satisfies the security requirements,
+and `False` if not.
+
+```
+role Cro::OpenAPI::RoutesFromDefinition::SecurityChecker {
+    method is-allowed(OpenAPI::Model::SecurityScheme $scheme, Cro::HTTP::Request $request,
+            :@requirements, :$operation-id --> Bool) { ... }
+}
+```
+
+For the case of API keys, the role provides a `get-api-key($scheme, $request)`
+method that will use the scheme to look up the API key from the request. It will
+return a `Failure` if the is no such header, cookie, or query string parameter, or
+if the scheme type is not `apiKey`.
+
+An example implementation of the role looks like this:
+
+```
+class KeyChecker does Cro::OpenAPI::RoutesFromDefinition::SecurityChecker {
+    method is-allowed(OpenAPI::Model::SecurityScheme $scheme, Cro::HTTP::Request $request --> Bool) {
+        with self.get-api-key($scheme, $request) -> $key {
+            if $key.starts-with('totally-legit') {
+                $request.auth = MyAuthInfo.new(:$key);
+                return True;
+            }
+        }
+        return False;
+    }
+}
+```
+
+Which could be used like this:
+
+```
+my $application = openapi $api-doc, security => KeyChecker, {
+    operation 'public', -> {
+        content 'text/plain', 'public ok';
+    }
+    operation 'private', -> {
+        content 'text/plain', 'private ok, key=' ~ request.auth.key;
+    }
+}
+```
 
 ## Author
 

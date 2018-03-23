@@ -3,6 +3,7 @@ use Cro::HTTP::Middleware;
 use Cro::HTTP::Router;
 use Cro::OpenAPI::RoutesFromDefinition::AdaptHandler;
 use Cro::OpenAPI::RoutesFromDefinition::Checkers;
+use Cro::OpenAPI::RoutesFromDefinition::SecurityChecker;
 use OpenAPI::Model;
 
 class X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse is Exception {
@@ -118,6 +119,24 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
             method !filter-parameters($in) {
                 flat $!path.parameters.grep(*.in eq $in), $!operation.parameters.grep(*.in eq $in)
+            }
+        }
+
+        my class SecurityCheckMiddleware does Cro::HTTP::Middleware::Conditional {
+            has Cro::OpenAPI::RoutesFromDefinition::SecurityChecker $.security is required;
+            has OpenAPI::Model::SecurityScheme $.scheme is required;
+            has @.requirements is required;
+            has Str $.operation-id is required;
+
+            method process(Supply $requests) {
+                supply whenever $requests -> $request {
+                    if $!security.is-allowed($!scheme, $request, :@!requirements, :$!operation-id) {
+                        emit $request;
+                    }
+                    else {
+                        emit Cro::HTTP::Response.new(:401status, :$request);
+                    }
+                }
             }
         }
 
@@ -326,9 +345,9 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
         }
 
-        method definition-complete(:$ignore-unimplemented, :$validate-responses --> Nil) {
+        method definition-complete(:$security, :$ignore-unimplemented, :$validate-responses --> Nil) {
             self!check-unimplemented() unless $ignore-unimplemented;
-            for %!operations-by-id.values {
+            for %!operations-by-id.kv -> $operation-id, $_ {
                 if .implementation {
                     my @before = @.before;
                     my @after = @.after;
@@ -341,6 +360,17 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         my $middleware = RequestCheckMiddleware.new(:$checker, :allow-invalid(.allow-invalid));
                         unshift @before, $middleware.request;
                         push @after, $middleware.response;
+                    }
+                    if $security !=== Cro::OpenAPI::RoutesFromDefinition::SecurityChecker {
+                        for @(.operation.security || $!model.security) -> $security-req {
+                            for $security-req.kv -> $scheme-name, @requirements {
+                                my $scheme = $!model.components.get-security-scheme($scheme-name);
+                                my $middleware = SecurityCheckMiddleware.new:
+                                        :$security, :$scheme, :@requirements, :$operation-id;
+                                unshift @before, $middleware.request;
+                                push @after, $middleware.response;
+                            }
+                        }
                     }
                     self.handlers.push(OperationHandler.new(
                         :implementation(.implementation), :method(.method),
@@ -441,6 +471,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
     }
 
     multi openapi(Str:D $openapi-document, &implementation,
+                  Cro::OpenAPI::RoutesFromDefinition::SecurityChecker :$security,
                   Bool() :$ignore-unimplemented = False,
                   Bool() :$validate-responses = True) is export {
         my $model = $openapi-document ~~ /^\s*'{'/
@@ -448,7 +479,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             !! OpenAPI::Model.from-yaml($openapi-document);
         my $*CRO-ROUTE-SET = OperationSet.new(:$model);
         implementation();
-        $*CRO-ROUTE-SET.definition-complete(:$ignore-unimplemented, :$validate-responses);
+        $*CRO-ROUTE-SET.definition-complete(:$security, :$ignore-unimplemented, :$validate-responses);
         return $*CRO-ROUTE-SET;
     }
 

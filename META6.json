@@ -11,6 +11,7 @@
     "license": "Artistic-2.0",
     "source-url": "",
     "provides": {
+        "Cro::OpenAPI::RoutesFromDefinition::SecurityChecker": "lib/Cro/OpenAPI/RoutesFromDefinition/SecurityChecker.pm6",
         "Cro::OpenAPI::RoutesFromDefinition": "lib/Cro/OpenAPI/RoutesFromDefinition.pm6",
         "Cro::OpenAPI::RoutesFromDefinition::Checkers": "lib/Cro/OpenAPI/RoutesFromDefinition/Checkers.pm6",
         "Cro::OpenAPI::RoutesFromDefinition::AdaptHandler": "lib/Cro/OpenAPI/RoutesFromDefinition/AdaptHandler.pm6"
