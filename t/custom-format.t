@@ -48,7 +48,7 @@ my $uri = "http://127.0.0.1:{TEST_PORT}/format-test";
 
 {
     my $resp = await Cro::HTTP::Client.get: "$uri?var=a123";
-    is $resp.status, 200, 'Valid 200 response is returend when both cookies sent';
+    is $resp.status, 200, 'Valid 200 response is returend when string matches custom format';
     is await($resp.body-text), 'Var: a123', 'String matching custom format accepted';
 }
 
