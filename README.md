@@ -127,6 +127,10 @@ The `openapi` sub may be passed the following options:
   `False`. If set to False, then responses will not be validated. This may be
   useful for increasing production performance, once confident the API has
   been correctly implemented.
+* `:%formats` and `:%add-formats` - passed to `OpenAPI::Schema::Validate` to
+  control format validation (`%add-formats` adds additional formats or
+  overrides existing ones which `%formats` allows for a full replacement of
+  the available formats).
 
 All operations in the OpenAPI document should have an `operationId` in order
 to be implementable. Unless configured with `:ignore-unimplemented`, such

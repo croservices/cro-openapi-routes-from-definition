@@ -6,7 +6,6 @@ use Test;
 
 my constant TEST_PORT = 30002;
 
-
 my $api-doc = q:to/OPENAPI/;
     {
         "openapi": "3.0.0",

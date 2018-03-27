@@ -33,10 +33,10 @@ package Cro::OpenAPI::RoutesFromDefinition {
         has Bool $.read;
         has Bool $.required;
         has %!content-type-schemas;
-        submethod TWEAK(:%content-schemas --> Nil) {
+        submethod TWEAK(:%content-schemas, :%validate-options --> Nil) {
             for %content-schemas.kv -> $type, $schema {
                 %!content-type-schemas{$type.fc} = $schema
-                    ?? OpenAPI::Schema::Validate.new(:$schema)
+                    ?? OpenAPI::Schema::Validate.new(:$schema, |%validate-options)
                     !! Nil;
             }
         }
@@ -79,12 +79,12 @@ package Cro::OpenAPI::RoutesFromDefinition {
         has %!required;
         has %!expected;
         has %!schemas;
-        method TWEAK(:@parameters) {
+        method TWEAK(:@parameters, :%validate-options) {
             for @parameters {
                 %!expected{.name} = True;
                 %!required{.name} = True if .required;
                 if .schema -> $schema {
-                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema);
+                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema, |%validate-options);
                 }
             }
         }
@@ -129,11 +129,11 @@ package Cro::OpenAPI::RoutesFromDefinition {
     class HeaderChecker does Checker {
         has %!required;
         has %!schemas;
-        method TWEAK(:@parameters) {
+        method TWEAK(:@parameters, :%validate-options) {
             for @parameters {
                 %!required{.name} = True if .required;
                 if .schema -> $schema {
-                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema);
+                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema, |%validate-options);
                 }
             }
         }
@@ -173,11 +173,11 @@ package Cro::OpenAPI::RoutesFromDefinition {
     class CookieChecker does Checker {
         has %!required;
         has %!schemas;
-        method TWEAK(:@parameters) {
+        method TWEAK(:@parameters, :%validate-options) {
             for @parameters {
                 %!required{.name} = True if .required;
                 if .schema -> $schema {
-                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema);
+                    %!schemas{.name} = OpenAPI::Schema::Validate.new(:$schema, |%validate-options);
                 }
             }
         }
@@ -220,12 +220,12 @@ package Cro::OpenAPI::RoutesFromDefinition {
             has OpenAPI::Schema::Validate $.schema;
         }
         has Check @!checks;
-        method TWEAK(:@parameters, :@template-segments) {
+        method TWEAK(:@parameters, :@template-segments, :%validate-options) {
             for @parameters -> $param {
                 with @template-segments.first(:k, '{' ~ $param.name ~ '}') -> $index {
                     with $param.schema -> $schema {
                         push @!checks, Check.new(:$index, :name($param.name),
-                            :schema(OpenAPI::Schema::Validate.new(:$schema)));
+                            :schema(OpenAPI::Schema::Validate.new(:$schema, |%validate-options)));
                     }
                 }
                 else {

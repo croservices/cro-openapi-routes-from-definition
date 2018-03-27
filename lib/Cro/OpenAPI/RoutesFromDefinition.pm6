@@ -345,18 +345,22 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
         }
 
-        method definition-complete(:$security, :$ignore-unimplemented, :$validate-responses --> Nil) {
+        method definition-complete(:$security, :$ignore-unimplemented, :$validate-responses,
+                                   :$formats, :$add-formats  --> Nil) {
             self!check-unimplemented() unless $ignore-unimplemented;
+            my %validate-options;
+            %validate-options<formats> = $_ with $formats;
+            %validate-options<add-formats> = $_ with $add-formats;
             for %!operations-by-id.kv -> $operation-id, $_ {
                 if .implementation {
                     my @before = @.before;
                     my @after = @.after;
                     if $validate-responses {
-                        with self!checker-for-response($_) -> $checker {
+                        with self!checker-for-response($_, %validate-options) -> $checker {
                             push @after, ResponseCheckMiddleware.new(:$checker);
                         }
                     }
-                    with self!checker-for-request($_) -> $checker {
+                    with self!checker-for-request($_, %validate-options) -> $checker {
                         my $middleware = RequestCheckMiddleware.new(:$checker, :allow-invalid(.allow-invalid));
                         unshift @before, $middleware.request;
                         push @after, $middleware.response;
@@ -393,20 +397,24 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
         }
 
-        method !checker-for-request(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
+        method !checker-for-request(Operation $op, %validate-options --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
             my @checkers;
             if $op.path-parameters -> @parameters {
                 push @checkers, Cro::OpenAPI::RoutesFromDefinition::PathChecker.new(
-                        :@parameters, :template-segments($op.template-segments));
+                        :@parameters, :template-segments($op.template-segments),
+                        :%validate-options);
             }
             if $op.query-string-parameters -> @parameters {
-                push @checkers, Cro::OpenAPI::RoutesFromDefinition::QueryStringChecker.new(:@parameters);
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::QueryStringChecker.new(
+                        :@parameters, :%validate-options);
             }
             if $op.header-parameters -> @parameters {
-                push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(
+                        :@parameters, :%validate-options);
             }
             if $op.cookie-parameters -> @parameters {
-                push @checkers, Cro::OpenAPI::RoutesFromDefinition::CookieChecker.new(:@parameters);
+                push @checkers, Cro::OpenAPI::RoutesFromDefinition::CookieChecker.new(
+                        :@parameters, :%validate-options);
             }
             with $op.operation.request-body {
                 my %content-schemas;
@@ -417,7 +425,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 }
                 push @checkers, Cro::OpenAPI::RoutesFromDefinition::BodyChecker.new(
                    :required(.required), :write,
-                   :%content-schemas
+                   :%content-schemas, :%validate-options
                 );
             }
             return @checkers == 1 ?? @checkers[0] !!
@@ -430,7 +438,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             has $.required;
             has %.schema;
         }
-        method !checker-for-response(Operation $op --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
+        method !checker-for-response(Operation $op, %validate-options --> Cro::OpenAPI::RoutesFromDefinition::Checker) {
             my $operation = $op.operation;
             my %checker-by-code;
             for $operation.responses.kv -> $status, $response {
@@ -441,7 +449,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                         %content-schemas{$content-type} = $media-type.schema;
                     }
                     push @checkers, Cro::OpenAPI::RoutesFromDefinition::BodyChecker.new:
-                        :!required, :read, :%content-schemas;
+                        :!required, :read, :%content-schemas, :%validate-options;
                 }
                 if $response.headers -> %headers {
                     my @parameters;
@@ -452,7 +460,8 @@ module Cro::OpenAPI::RoutesFromDefinition {
                             schema => $value.schema
                         );
                     }
-                    push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(:@parameters);
+                    push @checkers, Cro::OpenAPI::RoutesFromDefinition::HeaderChecker.new(
+                        :@parameters, :%validate-options);
                 }
                 %checker-by-code{$status} = @checkers == 0
                      ?? Cro::OpenAPI::RoutesFromDefinition::PassChecker.new
@@ -473,13 +482,15 @@ module Cro::OpenAPI::RoutesFromDefinition {
     multi openapi(Str:D $openapi-document, &implementation,
                   Cro::OpenAPI::RoutesFromDefinition::SecurityChecker :$security,
                   Bool() :$ignore-unimplemented = False,
-                  Bool() :$validate-responses = True) is export {
+                  Bool() :$validate-responses = True,
+                  Associative :$formats, Associative :$add-formats) is export {
         my $model = $openapi-document ~~ /^\s*'{'/
             ?? OpenAPI::Model.from-json($openapi-document)
             !! OpenAPI::Model.from-yaml($openapi-document);
         my $*CRO-ROUTE-SET = OperationSet.new(:$model);
         implementation();
-        $*CRO-ROUTE-SET.definition-complete(:$security, :$ignore-unimplemented, :$validate-responses);
+        $*CRO-ROUTE-SET.definition-complete(:$security, :$ignore-unimplemented,
+            :$validate-responses, :$formats, :$add-formats);
         return $*CRO-ROUTE-SET;
     }
 
