@@ -131,6 +131,14 @@ The `openapi` sub may be passed the following options:
   control format validation (`%add-formats` adds additional formats or
   overrides existing ones which `%formats` allows for a full replacement of
   the available formats).
+* `:%document` - used to configure how the OpenAPI document itself is served.
+  It defaults to `{ '/openapi.json' => 'json', '/openapi.yaml' => 'yaml' }`,
+  which means that the OpenAPI specification will be served as both JSON and
+  YAML on requests to `/openapi.json` and `/openapi.yaml` respectively. To
+  serve a format at the root of the API, pass `:document{ json => '/' }` (this
+  also means it will not be served at `/openapi.json` and `/openapi.yaml` any
+  longer). It is fine to register multiple paths to serve the document for a
+  given format at.
 
 All operations in the OpenAPI document should have an `operationId` in order
 to be implementable. Unless configured with `:ignore-unimplemented`, such

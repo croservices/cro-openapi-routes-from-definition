@@ -4,7 +4,9 @@ use Cro::HTTP::Router;
 use Cro::OpenAPI::RoutesFromDefinition::AdaptHandler;
 use Cro::OpenAPI::RoutesFromDefinition::Checkers;
 use Cro::OpenAPI::RoutesFromDefinition::SecurityChecker;
+use JSON::Tiny;
 use OpenAPI::Model;
+use YAMLish;
 
 class X::Cro::OpenAPI::RoutesFromDefinition::InvalidUse is Exception {
     has Str $.what is required;
@@ -345,6 +347,13 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
         }
 
+        method add-document(@path, $content-type, $content-blob --> Nil) {
+            self.handlers.push(OperationHandler.new(
+                :implementation{ content $content-type, $content-blob },
+                :method('GET'), :template-segments(@path)
+            ));
+        }
+
         method definition-complete(:$security, :$ignore-unimplemented, :$validate-responses,
                                    :$formats, :$add-formats  --> Nil) {
             self!check-unimplemented() unless $ignore-unimplemented;
@@ -483,15 +492,42 @@ module Cro::OpenAPI::RoutesFromDefinition {
                   Cro::OpenAPI::RoutesFromDefinition::SecurityChecker :$security,
                   Bool() :$ignore-unimplemented = False,
                   Bool() :$validate-responses = True,
+                  :%document = { '/openapi.json' => 'json', '/openapi.yaml' => 'yaml' },
                   Associative :$formats, Associative :$add-formats) is export {
         my $model = $openapi-document ~~ /^\s*'{'/
             ?? OpenAPI::Model.from-json($openapi-document)
             !! OpenAPI::Model.from-yaml($openapi-document);
         my $*CRO-ROUTE-SET = OperationSet.new(:$model);
         implementation();
+        add-documents($model, %document);
         $*CRO-ROUTE-SET.definition-complete(:$security, :$ignore-unimplemented,
             :$validate-responses, :$formats, :$add-formats);
         return $*CRO-ROUTE-SET;
+    }
+
+    sub add-documents($model, %document) {
+        return unless %document;
+        my $serialized = $model.serialize();
+        my ($json, $yaml);
+        for %document.kv -> $path, $_ {
+            unless $path.starts-with('/') {
+                die "Invalid path '$path' for document (must start with /)";
+            }
+            my @path = $path.substr(1).split('/');
+            when 'json' {
+                $json //= to-json $serialized;
+                $*CRO-ROUTE-SET.add-document(@path, 'application/json',
+                    $json.encode('utf-8'));
+            }
+            when 'yaml' {
+                $yaml //= save-yaml $serialized;
+                $*CRO-ROUTE-SET.add-document(@path, 'application/x-yaml',
+                    $yaml.encode('utf-8'));
+            }
+            default {
+                die "Unknown document type '$_' (must be 'json' or 'yaml')";
+            }
+        }
     }
 
     multi operation(Str:D $operation-id, &implementation,
