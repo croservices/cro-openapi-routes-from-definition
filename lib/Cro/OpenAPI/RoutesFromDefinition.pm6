@@ -4,7 +4,7 @@ use Cro::HTTP::Router;
 use Cro::OpenAPI::RoutesFromDefinition::AdaptHandler;
 use Cro::OpenAPI::RoutesFromDefinition::Checkers;
 use Cro::OpenAPI::RoutesFromDefinition::SecurityChecker;
-use JSON::Tiny;
+use JSON::Fast;
 use OpenAPI::Model;
 use YAMLish;
 
