@@ -1,8 +1,10 @@
 {
     "depends": [
         "Cro::HTTP",
+        "JSON::Fast",
         "OpenAPI::Model",
-        "OpenAPI::Schema::Validate"
+        "OpenAPI::Schema::Validate",
+        "YAMLish"
     ],
     "description": "Easily implement an existing OpenAPI definition, server side, using Cro.",
     "resources": [],
