@@ -9,7 +9,7 @@
     "description": "Easily implement an existing OpenAPI definition, server side, using Cro.",
     "resources": [],
     "version": "0.0.1",
-    "tags": [],
+    "tags": [ "openapi", "oas", "swagger", "api", "server", "generation" ],
     "license": "Artistic-2.0",
     "source-url": "https://github.com/croservices/cro-openapi-routes-from-definition.git",
     "provides": {
