@@ -11,7 +11,7 @@
     "version": "0.0.1",
     "tags": [],
     "license": "Artistic-2.0",
-    "source-url": "",
+    "source-url": "https://github.com/croservices/cro-openapi-routes-from-definition.git",
     "provides": {
         "Cro::OpenAPI::RoutesFromDefinition::SecurityChecker": "lib/Cro/OpenAPI/RoutesFromDefinition/SecurityChecker.pm6",
         "Cro::OpenAPI::RoutesFromDefinition": "lib/Cro/OpenAPI/RoutesFromDefinition.pm6",
