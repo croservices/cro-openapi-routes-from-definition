@@ -1,49 +1,47 @@
 # Cro::OpenAPI::RoutesFromDefinition
 
 Takes an existing OpenAPI Document and allows straightforward implementation
-of the API defined within it using the Cro libraries. In the case where the
-OpenAPI document contains examples, this module can optionally use them to
-automatically produce a dummy service, which may be useful for mocking.
+of the API defined within it using the Cro libraries.
 
 ## Synopsis
 
     # Implement the OpenAPI defined in schema.yaml.
     my $routes = openapi 'schema.yaml'.IO, {
-		# Given an operation defined like this:
-		# 
-		#   summary: Updates a pet in the store with form data
-		#   operationId: updatePetWithForm
-		#   parameters:
-		#   - name: petId
-		#     in: path
-		#     description: ID of pet that needs to be updated
-		#     required: true
-		#     schema:
-		#   	type: string
-		#   requestBody:
-		#     content:
-		#   	'application/x-www-form-urlencoded':
-		#   	  schema:
-		#   	   properties:
-		#   		  name: 
-		#   			description: Updated name of the pet
-		#   			type: string
-		#   		  status:
-		#   			description: Updated status of the pet
-		#   			type: string
-		#   	   required:
-		#   		 - status
-		#   responses:
-		#     '200':
-		#   	description: Pet updated.
-		#   	content: 
-		#   	  'application/json': {}
-		#     '400':
-		#   	description: Invalid input
-		#   	content: 
-		#   	  'application/json': {}
-		#
-		# We can implement it by receiving the route parameter as a positional
+        # Given an operation defined like this:
+        # 
+        #   summary: Updates a pet in the store with form data
+        #   operationId: updatePetWithForm
+        #   parameters:
+        #   - name: petId
+        #     in: path
+        #     description: ID of pet that needs to be updated
+        #     required: true
+        #     schema:
+        #   	type: string
+        #   requestBody:
+        #     content:
+        #   	'application/x-www-form-urlencoded':
+        #   	  schema:
+        #   	   properties:
+        #   		  name: 
+        #   			description: Updated name of the pet
+        #   			type: string
+        #   		  status:
+        #   			description: Updated status of the pet
+        #   			type: string
+        #   	   required:
+        #   		 - status
+        #   responses:
+        #     '200':
+        #   	description: Pet updated.
+        #   	content: 
+        #   	  'application/json': {}
+        #     '400':
+        #   	description: Invalid input
+        #   	content: 
+        #   	  'application/json': {}
+        #
+        # We can implement it by receiving the route parameter as a positional
         # argument; other literal route segments need not be mentioned.
         operation 'updatePetWithForm', -> $id {
             # The request body will already have been validated, so just grab
