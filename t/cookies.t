@@ -60,7 +60,7 @@ my $uri = "http://127.0.0.1:{TEST_PORT}";
         limit => 42,
         animal => 'cat'
     };
-    is $resp.status, 200, 'Valid 200 response is returend when both cookies sent';
+    is $resp.status, 200, 'Valid 200 response is returned when both cookies sent';
     is await($resp.body-text), 'Limit: 42, Animal: cat',
         'Got cookies in body as expected';
 }
@@ -69,7 +69,7 @@ my $uri = "http://127.0.0.1:{TEST_PORT}";
     my $resp = await Cro::HTTP::Client.get: "$uri/cookie-in", cookies => {
         animal => 'cat'
     };
-    is $resp.status, 200, 'Valid 200 response is returend when only required cookie sent';
+    is $resp.status, 200, 'Valid 200 response is returned when only required cookie sent';
     is await($resp.body-text), 'Limit: , Animal: cat',
         'Got one required cookie in body as expected';
 }
