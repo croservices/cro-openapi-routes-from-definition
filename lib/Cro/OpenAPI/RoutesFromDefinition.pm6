@@ -4,6 +4,7 @@ use Cro::HTTP::Router;
 use Cro::OpenAPI::RoutesFromDefinition::AdaptHandler;
 use Cro::OpenAPI::RoutesFromDefinition::Checkers;
 use Cro::OpenAPI::RoutesFromDefinition::SecurityChecker;
+use Cro::OpenAPI::RoutesFromDefinition::Parser;
 use JSON::Fast;
 use OpenAPI::Model;
 use YAMLish;
@@ -190,6 +191,28 @@ module Cro::OpenAPI::RoutesFromDefinition {
                     my $status = $ex.bad-path ?? 404 !! 400;
                     return Cro::HTTP::Response.new(:$status, :$request);
                 }
+            }
+        }
+
+        my class RequestParserMiddleware does Cro::HTTP::Middleware::Request {
+            has OpenAPI::Model::Operation $.operation;
+            has Cro::OpenAPI::RoutesFromDefinition::Parser $.parser =
+              Cro::OpenAPI::RoutesFromDefinition::Parser.new;
+
+            method process(Supply $requests) {
+                supply whenever $requests -> $request {
+                    emit $!parser.parse($request, $!operation);
+                    CATCH {
+                        when X::Cro::OpenAPI::RoutesFromDefinition::ParseFailed {
+                            emit self!handle-error($request, $_);
+                        }
+                    }
+                }
+            }
+
+            method !handle-error($request, $ex) {
+                note "Request to $request.target() failed parsing: $ex.reason()";
+                return Cro::HTTP::Response.new(:status(400), :$request);
             }
         }
 
@@ -385,6 +408,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
                             }
                         }
                     }
+                    @before.unshift(RequestParserMiddleware.new(operation => $_.operation));
                     self.handlers.push(OperationHandler.new(
                         :implementation(.implementation), :method(.method),
                         :template-segments(.template-segments), :@before, :@after,
