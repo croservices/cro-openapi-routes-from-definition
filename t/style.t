@@ -58,46 +58,6 @@ my $uri = "http://127.0.0.1:{TEST_PORT}";
        'Got token as expected';
 }
 
-# {
-#     my $resp = await Cro::HTTP::Client.get: "$uri/cookie-in", cookies => {
-#         animal => 'cat'
-#     };
-#     is $resp.status, 200, 'Valid 200 response is returend when only required cookie sent';
-#     is await($resp.body-text), 'Limit: , Animal: cat',
-#         'Got one required cookie in body as expected';
-# }
-
-# throws-like
-#     {
-#         await Cro::HTTP::Client.get: "$uri/cookie-in", cookies => {
-#             limit => 42
-#         }
-#     },
-#     X::Cro::HTTP::Error,
-#     response => { .status == 400 },
-#     'When missing required cookie, then 400 error';
-
-# throws-like
-#     {
-#         await Cro::HTTP::Client.get: "$uri/cookie-in", cookies => {
-#             animal => 'crab'
-#         }
-#     },
-#     X::Cro::HTTP::Error,
-#     response => { .status == 400 },
-#     'When required cookie does not match schema, then 400 error';
-
-# throws-like
-#     {
-#         await Cro::HTTP::Client.get: "$uri/cookie-in", cookies => {
-#             limit => 'none',
-#             animal => 'cat'
-#         }
-#     },
-#     X::Cro::HTTP::Error,
-#     response => { .status == 400 },
-#     'When optional cookie does not match schema, then 400 error';
-
 $server.stop;
 
 done-testing;
