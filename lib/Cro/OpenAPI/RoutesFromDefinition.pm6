@@ -249,14 +249,14 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 );
             }
 
-            method copy-adding(:@prefix, :@body-parsers!, :@body-serializers!, :@before!, :@after!) {
+            method copy-adding(:@prefix, :@body-parsers!, :@body-serializers!, :@before-matched!, :@after-matched!) {
                 self.bless:
                     :$!method, :&!implementation, :@!template-segments,
                     :prefix[flat @prefix, @!prefix],
                     :body-parsers[flat @!body-parsers, @body-parsers],
                     :body-serializers[flat @!body-serializers, @body-serializers],
-                    :before[flat @before, @!before],
-                    :after[flat @!after, @after]
+                    :before[flat @before-matched, @!before-matched],
+                    :after[flat @!after-matched, @after-matched]
             }
 
             method signature() {
@@ -292,16 +292,16 @@ module Cro::OpenAPI::RoutesFromDefinition {
             }
 
             method invoke(Cro::HTTP::Request $request, Capture $args) {
-                if @!before || @!after {
+                if @!before-matched || @!after-matched {
                     my $current = supply emit $request;
                     my %connection-state{Mu};
-                    $current = self!append-middleware($current, @!before, %connection-state);
+                    $current = self!append-middleware($current, @!before-matched, %connection-state);
                     my $response = supply whenever $current -> $req {
                         whenever self!invoke-internal($req, $args) {
                             emit $_;
                         }
                     }
-                    return self!append-middleware($response, @!after, %connection-state);
+                    return self!append-middleware($response, @!after-matched, %connection-state);
                 } else {
                     return self!invoke-internal($request, $args);
                 }
@@ -362,17 +362,17 @@ module Cro::OpenAPI::RoutesFromDefinition {
             %validate-options<add-formats> = $_ with $add-formats;
             for %!operations-by-id.kv -> $operation-id, $_ {
                 if .implementation {
-                    my @before = @.before;
-                    my @after = @.after;
+                    my @before-matched = @.before-matched;
+                    my @after-matched = @.after-matched;
                     if $validate-responses {
                         with self!checker-for-response($_, %validate-options) -> $checker {
-                            push @after, ResponseCheckMiddleware.new(:$checker);
+                            push @after-matched, ResponseCheckMiddleware.new(:$checker);
                         }
                     }
                     with self!checker-for-request($_, %validate-options) -> $checker {
                         my $middleware = RequestCheckMiddleware.new(:$checker, :allow-invalid(.allow-invalid));
-                        unshift @before, $middleware.request;
-                        push @after, $middleware.response;
+                        unshift @before-matched, $middleware.request;
+                        push @after-matched, $middleware.response;
                     }
                     if $security !=== Cro::OpenAPI::RoutesFromDefinition::SecurityChecker {
                         for @(.operation.security || $!model.security) -> $security-req {
@@ -380,14 +380,14 @@ module Cro::OpenAPI::RoutesFromDefinition {
                                 my $scheme = $!model.components.get-security-scheme($scheme-name);
                                 my $middleware = SecurityCheckMiddleware.new:
                                         :$security, :$scheme, :@requirements, :$operation-id;
-                                unshift @before, $middleware.request;
-                                push @after, $middleware.response;
+                                unshift @before-matched, $middleware.request;
+                                push @after-matched, $middleware.response;
                             }
                         }
                     }
                     self.handlers.push(OperationHandler.new(
                         :implementation(.implementation), :method(.method),
-                        :template-segments(.template-segments), :@before, :@after,
+                        :template-segments(.template-segments), :@before-matched, :@after-matched,
                         :@.body-parsers,  :@.body-serializers
                     ));
                 }
