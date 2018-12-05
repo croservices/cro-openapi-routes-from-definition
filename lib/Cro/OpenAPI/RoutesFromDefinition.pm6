@@ -255,8 +255,8 @@ module Cro::OpenAPI::RoutesFromDefinition {
                     :prefix[flat @prefix, @!prefix],
                     :body-parsers[flat @!body-parsers, @body-parsers],
                     :body-serializers[flat @!body-serializers, @body-serializers],
-                    :before[flat @before-matched, @!before-matched],
-                    :after[flat @!after-matched, @after-matched]
+                    :before-matched[flat @before-matched, @!before-matched],
+                    :after-matched[flat @!after-matched, @after-matched]
             }
 
             method signature() {
