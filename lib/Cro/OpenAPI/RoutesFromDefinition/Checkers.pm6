@@ -41,15 +41,15 @@ package Cro::OpenAPI::RoutesFromDefinition {
             }
         }
         method check(Cro::HTTP::Message $m, $body --> Nil) {
-            if $m.header('content-type') -> $content-type {
-                if %!content-type-schemas{$content-type.fc}:exists {
-                    with %!content-type-schemas{$content-type.fc} {
+            with $m.content-type -> $content-type {
+                if %!content-type-schemas{$content-type.type-and-subtype.fc}:exists {
+                    with %!content-type-schemas{$content-type.type-and-subtype.fc} {
                         .validate($body, :$!read, :$!write);
                         CATCH {
                             when X::OpenAPI::Schema::Validate::Failed {
                                 die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
                                     http-message => $m,
-                                    reason => "validation of '$content-type' schema failed " ~
+                                    reason => "validation of '{$content-type.type-and-subtype.fc}' schema failed " ~
                                         "at $_.path(): $_.reason()"
                                 );
                             }
@@ -59,7 +59,7 @@ package Cro::OpenAPI::RoutesFromDefinition {
                 else {
                     die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
                         http-message => $m,
-                        reason => "content type '$content-type' is not allowed"
+                        reason => "content type '{$content-type.type-and-subtype.fc}' is not allowed"
                     );
                 }
             }
