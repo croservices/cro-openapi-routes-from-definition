@@ -2,6 +2,7 @@ use Cro::HTTP::Client;
 use Cro::HTTP::Router;
 use Cro::HTTP::Server;
 use Cro::OpenAPI::RoutesFromDefinition;
+use JSON::Fast;
 use Test;
 
 my constant TEST_PORT = 29997;
@@ -24,6 +25,32 @@ my $api-doc = q:to/OPENAPI/;
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/Pet"
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "201": {
+                            "description": "Null response"
+                        }
+                    }
+                }
+            },
+            "/multipart-pets": {
+                "post": {
+                    "summary": "Create a pet",
+                    "operationId": "createMultipartPets",
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "multipart/form-data": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Pet"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -69,11 +96,19 @@ my $application = openapi $api-doc, {
             created "/pets/$id";
         }
     }
+    operation 'createMultipartPets', -> {
+        request-body -> %d {
+            my $json = %d<data>;
+            my %data = from-json($json);
+            created "/pets/{%data<id>}";
+        }
+    }
 }
 
 my $server = Cro::HTTP::Server.new: :host<0.0.0.0>, :port(TEST_PORT), :$application;
 $server.start;
 my $uri = "http://127.0.0.1:{TEST_PORT}/pets";
+my $multipart-uri = "http://127.0.0.1:{TEST_PORT}/multipart-pets";
 
 {
     my $resp = await Cro::HTTP::Client.post: $uri, :content-type<application/json>,
@@ -87,6 +122,20 @@ my $uri = "http://127.0.0.1:{TEST_PORT}/pets";
         :body{ :id(1235), :name('Claire the Cat') };
     is $resp.status, 201, 'Valid request without optional prop gets 201 status response';
     is $resp.header('location'), '/pets/1235', 'Accessed body fine and used it in response';
+}
+
+{
+    my $resp = await Cro::HTTP::Client.post: $multipart-uri,
+        content-type => 'multipart/form-data',
+        body => [
+            Cro::HTTP::Body::MultiPartFormData::Part.new(
+				name      => 'data',
+				headers   => [Cro::HTTP::Header.new(name => 'Content-Type', value => 'application/json')],
+				body-blob => '{ "id": 1236, "name": "Claire the Cat" }'.encode
+            )
+        ];
+    is $resp.status, 201, 'Valid Multipart request succeeds';
+    is $resp.header('location'), '/pets/1236', 'Accessed body fine and used it in response';
 }
 
 throws-like
