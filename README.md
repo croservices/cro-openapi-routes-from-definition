@@ -1,4 +1,4 @@
-# Cro::OpenAPI::RoutesFromDefinition
+# Cro::OpenAPI::RoutesFromDefinition ![Build Status](https://github.com/croservices/cro-openapi-routes-from-definition/actions/workflows/ci.yml/badge.svg)
 
 Takes an existing OpenAPI Document and allows straightforward implementation
 of the API defined within it using the Cro libraries.
