@@ -8,7 +8,7 @@
     ],
     "description": "Easily implement an existing OpenAPI definition, server side, using Cro.",
     "resources": [],
-    "version": "1.0.1",
+    "version": "1.0.2",
     "tags": [ "openapi", "oas", "swagger", "api", "server", "generation" ],
     "license": "Artistic-2.0",
     "source-url": "https://github.com/croservices/cro-openapi-routes-from-definition.git",
@@ -19,7 +19,7 @@
         "Cro::OpenAPI::RoutesFromDefinition::AdaptHandler": "lib/Cro/OpenAPI/RoutesFromDefinition/AdaptHandler.pm6"
     },
     "name": "Cro::OpenAPI::RoutesFromDefinition",
-    "perl": "6.c",
+    "perl": "6.d",
     "build-depends": [],
     "test-depends": [],
     "authors": ["Jonathan Worthington <jonathan@edument.se>"]
