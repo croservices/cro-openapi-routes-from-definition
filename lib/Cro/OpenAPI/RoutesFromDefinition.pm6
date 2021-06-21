@@ -316,8 +316,12 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 for flat $paths.kv -> Str $path-template, $path {
                     for <get put post delete options head patch trace> -> $method {
                         with $path."$method"() -> $operation {
-                            %!operations-by-id{$operation.operation-id} = Operation.new:
-                                :method($method.uc), :$path-template, :$path, :$operation;
+                            with %!operations-by-id{$operation.operation-id} {
+                                warn "Duplicate operation ID $operation.operation-id() in OpenAPI specification";
+                            }
+                            else {
+                                $_ = Operation.new: :method($method.uc), :$path-template, :$path, :$operation;
+                            }
                         }
                     }
                 }
