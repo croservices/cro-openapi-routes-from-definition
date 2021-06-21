@@ -64,7 +64,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             has &.implementation;
             has Bool $.allow-invalid;
 
-            method TWEAK() {
+            submethod TWEAK() {
                 if $!path-template.starts-with('/') {
                     @!template-segments = $!path-template.substr(1).split('/');
                 }
@@ -242,7 +242,7 @@ module Cro::OpenAPI::RoutesFromDefinition {
             has @.template-segments;
             has AdaptedSignature $!adapted-sig;
 
-            method TWEAK() {
+            submethod TWEAK() {
                 $!adapted-sig = AdaptedSignature.new(
                     real-signature => &!implementation.signature,
                     :@!template-segments
