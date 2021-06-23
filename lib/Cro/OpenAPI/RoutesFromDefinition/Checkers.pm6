@@ -44,7 +44,7 @@ package Cro::OpenAPI::RoutesFromDefinition {
             with $m.content-type -> $content-type {
                 if %!content-type-schemas{$content-type.type-and-subtype.fc}:exists {
                     with %!content-type-schemas{$content-type.type-and-subtype.fc} {
-                        .validate($body, :$!read, :$!write);
+                        .validate(checkable-body($body), :$!read, :$!write);
                         CATCH {
                             when X::OpenAPI::Schema::Validate::Failed {
                                 die X::Cro::OpenAPI::RoutesFromDefinition::CheckFailed.new(
@@ -69,6 +69,22 @@ package Cro::OpenAPI::RoutesFromDefinition {
                     reason => "a message body is required"
                 );
             }
+        }
+        multi sub checkable-body(Cro::HTTP::Body::WWWFormUrlEncoded $encoded) {
+            hash $encoded.map: { .key => .value ~~ Str ?? val(.value) !! .value }
+        }
+        multi sub checkable-body(Cro::HTTP::Body::MultiPartFormData $multipart) {
+            my %checkable;
+            for $multipart.parts -> $part {
+                %checkable{$part.name} = do given $part.body {
+                    when Str { val($_) }
+                    default { $_ }
+                }
+            }
+            %checkable
+        }
+        multi sub checkable-body(Any $other) {
+            $other
         }
         method requires-body(--> Bool) {
             True
