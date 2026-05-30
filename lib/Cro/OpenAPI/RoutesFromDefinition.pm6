@@ -238,6 +238,14 @@ module Cro::OpenAPI::RoutesFromDefinition {
 
         my class OperationHandler does Cro::HTTP::Router::RouteSet::Handler {
             has Str $.method;
+            # Cro::HTTP::Router::RouteSet.definition-complete (cro-http 0.8.12+)
+            # iterates over each included handler and reads .name (for link
+            # generation key derivation) and assigns to .url-prefix. The
+            # built-in RouteHandler declares both attributes; OperationHandler
+            # does not generate links but must declare them anyway so the
+            # include path doesn't blow up with "No such method 'name'".
+            has Str $.name;
+            has Str $.url-prefix is rw = '';
             has &.implementation;
             has @.template-segments;
             has AdaptedSignature $!adapted-sig;
@@ -249,9 +257,17 @@ module Cro::OpenAPI::RoutesFromDefinition {
                 );
             }
 
-            method copy-adding(:@prefix, :@body-parsers!, :@body-serializers!, :@before-matched!, :@after-matched!) {
+            # The `*%extra` slurpy absorbs additional named arguments that
+            # newer Cro::HTTP::Router versions pass in (:@around,
+            # :%plugin-config, :$name-prefix, :$from-include, etc.). They are
+            # not used by OperationHandler since OpenAPI-defined routes do not
+            # participate in named-link generation or the plugin system.
+            method copy-adding(:@prefix, :@body-parsers!, :@body-serializers!,
+                               :@before-matched!, :@after-matched!,
+                               *%extra) {
                 self.bless:
                     :$!method, :&!implementation, :@!template-segments,
+                    :$!name, :$!url-prefix,
                     :prefix[flat @prefix, @!prefix],
                     :body-parsers[flat @!body-parsers, @body-parsers],
                     :body-serializers[flat @!body-serializers, @body-serializers],

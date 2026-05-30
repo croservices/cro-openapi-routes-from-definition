@@ -333,4 +333,18 @@ subtest 'Basic operation handler invocation' => {
         'Can call showPetById operation';
 }
 
+# Regression: Cro::HTTP::Router 0.8.12+ iterates included handlers in
+# definition-complete and reads .name / writes .url-prefix on each. An
+# OpenAPI route set must be includable inside an outer route block without
+# the include path raising "No such method 'name'".
+lives-ok
+    {
+        my $api = openapi $pet-store, :ignore-unimplemented, { ; };
+        my $outer = route {
+            include 'api' => $api;
+        };
+        $outer; # suppress sink warning
+    },
+    'OpenAPI route set can be included inside an outer route block';
+
 done-testing;
