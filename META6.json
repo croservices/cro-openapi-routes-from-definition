@@ -1,4 +1,5 @@
 {
+    "auth": "zef:cro",
     "depends": [
         "Cro::HTTP",
         "JSON::Fast",
